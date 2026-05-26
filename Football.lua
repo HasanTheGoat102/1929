@@ -1,85 +1,68 @@
+-- Touch Football CPS Hub Recreation
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
 
--- 1. SPAWN THE SOCCER BALL
-local template = ReplicatedStorage:WaitForChild("SoccerBall")
-local ball = template:Clone()
-ball.Parent = workspace
+-- Notification to show the script loaded
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "CPS HUB CRACKED",
+    Text = "Touch Football Script Loaded!",
+    Duration = 5
+})
 
--- Set up ball physics based on type
-local ballPart = nil
-if ball:IsA("BasePart") then
-    ballPart = ball
-    ball.Position = Vector3.new(0, 5, 0)
-    ball.Anchored = false
-    ball.CanCollide = true
-    ball.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5, 1, 1)
-elseif ball:IsA("Model") then
-    ballPart = ball.PrimaryPart or ball:FindFirstChildWhichIsA("BasePart")
-    if ballPart then
-        ballPart.Position = Vector3.new(0, 5, 0)
-        for _, v in pairs(ball:GetDescendants()) do
+-- CONFIGURATION
+_G.AutoGoal = false      -- Teleports the ball into the net
+_G.ReachEnabled = true   -- Gives you a massive reach/hitbox for the ball
+_G.BallMagnet = false    -- Attaches the ball to you permanently
+_G.ReachSize = 15
+
+-- Function to find the active football in Workspace
+local function getFootball()
+    -- Look for common Touch Football ball names
+    for _, v in ipairs(workspace:GetChildren()) do
+        if v.Name:lower():match("ball") or v.Name:lower():match("football") or v:FindFirstChild("BallScript") then
             if v:IsA("BasePart") then
-                v.Anchored = false
-                v.CanCollide = true
+                return v
+            elseif v:IsA("Model") and v.PrimaryPart then
+                return v.PrimaryPart
             end
         end
     end
+    return nil
 end
 
--- 2. CONFIGURATION VARIABLES (Controlled by your UI)
-_G.BallPullEnabled = true   -- Change to false to turn off
-_G.BallESPEnabled = true    -- Change to false to turn off
-_G.PullRange = 16           -- Maximum distance to pull
-_G.PullPower = 30           -- How fast the ball moves to you
-
--- 3. BALL ESP SYSTEM
-local function applyESP(targetBall)
-    if not targetBall then return end
-    -- Remove old highlight if it exists
-    local oldHighlight = targetBall:FindFirstChild("BallHighlight")
-    if oldHighlight then oldHighlight:Destroy() end
-    
-    -- Create new visual highlight box
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "BallHighlight"
-    highlight.FillColor = Color3.fromRGB(0, 255, 255) -- Cyan glow
-    highlight.FillTransparency = 0.5
-    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-    highlight.OutlineTransparency = 0
-    highlight.Adornee = targetBall
-    highlight.Enabled = _G.BallESPEnabled
-    highlight.Parent = targetBall
-end
-
-applyESP(ball)
-
--- 4. MAIN LOOP (Handles Ball Pulling and ESP toggles)
+-- MAIN LOOPS
 RunService.Heartbeat:Connect(function()
-    -- Update ESP visibility dynamically
-    if ball then
-        local hl = ball:FindFirstChild("BallHighlight")
-        if hl then hl.Enabled = _G.BallESPEnabled end
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local ball = getFootball()
+    
+    if not hrp or not ball then return end
+    
+    -- 1. BALL MAGNET (Brings ball directly to your feet)
+    if _G.BallMagnet then
+        ball.AssemblyLinearVelocity = Vector3.new(0,0,0)
+        ball.CFrame = hrp.CFrame * CFrame.new(0, -2, -3) -- Places ball right in front of you
     end
-
-    -- Run Ball Pull logic
-    if _G.BallPullEnabled and ballPart then
-        for _, player in ipairs(Players:GetPlayers()) do
-            local character = player.Character
-            local hrp = character and character:FindFirstChild("HumanoidRootPart")
-            
-            if hrp then
-                -- Check the distance between the player and the ball
-                local distance = (ballPart.Position - hrp.Position).Magnitude
-                
-                if distance <= _G.PullRange and distance > 3 then
-                    -- Calculate directional push vector toward player
-                    local direction = (hrp.Position - ballPart.Position).Unit
-                    ballPart.AssemblyLinearVelocity = direction * _G.PullPower
-                end
-            end
+    
+    -- 2. REACH / BIG HITBOX
+    if _G.ReachEnabled then
+        local distance = (ball.Position - hrp.Position).Magnitude
+        if distance <= _G.ReachSize then
+            -- Mimics a player touch/kick by applying force toward where you look
+            ball.AssemblyLinearVelocity = hrp.CFrame.LookVector * 45
+        end
+    end
+    
+    -- 3. AUTO GOAL (Teleports ball to enemy goal)
+    if _G.AutoGoal then
+        -- Searches workspace for the goals
+        local enemyGoal = workspace:FindFirstChild("LeftGoal") or workspace:FindFirstChild("RightGoal") -- Change based on map
+        if enemyGoal then
+            local goalPart = enemyGoal:FindFirstChildWhichIsA("BasePart") or enemyGoal
+            ball.CFrame = goalPart.CFrame
         end
     end
 end)
+
 
